@@ -1,0 +1,16 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "Cub",
+        "repositoryURL": "https://github.com/louisdh/cub.git",
+        "state": {
+          "branch": null,
+          "revision": "3248f2fec577b5b369fbfda3566e30cdfdf90f05",
+          "version": "1.0.1"
+        }
+      }
+    ]
+  },
+  "version": 1
+}
