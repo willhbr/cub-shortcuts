@@ -2,8 +2,10 @@ import Cub
 import Foundation
 
 let source = """
-c = 1 + 1
-alert("The number is two", c)
+func foo(a, b, c) returns {
+  alert("The number is two", c)
+  return a + b + c
+}
 """
 
 let lexer = Lexer(input: source)

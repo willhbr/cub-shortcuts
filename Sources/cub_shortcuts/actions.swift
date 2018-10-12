@@ -6,9 +6,17 @@ let actionIdentifier = "WFWorkflowActionIdentifier"
 let actionParams = "WFWorkflowActionParameters"
 
 class Body {
+  let superBod: Body?
   var statements = [Expression]()
   var conditionalGroups = [String]()
+  var functions = [String: Function]()
+  private var functionsToCheck = Set<String>()
 
+  init(parent: Body? = nil) {
+    superBod = parent
+  }
+
+  var isGlobal: Bool { return superBod == nil }
   var conditionalGroup: String? { return conditionalGroups.last }
   var lastUUID: String { return statements.last!.uuid }
 
@@ -17,6 +25,14 @@ class Body {
   }
 
   func ensureDefined(function: String) {
+    if let _ = functions[function] {
+      return
+    } else {
+      functionsToCheck.insert(function)
+    }
+  }
+
+  func registerFunction(_ function: Function) {
 
   }
 
@@ -56,7 +72,13 @@ struct Expression {
 protocol ShortcutGeneratable {
   func generate(body: Body)
 }
+
 func gen(_ node: ASTNode, _ body: Body) {
+  if body.isGlobal {
+    guard let _ = node as? FunctionNode else {
+      fatalError("Can only have functions at top level")
+    }
+  }
   switch node {
   case let generatable as ShortcutGeneratable:
     generatable.generate(body: body)
@@ -175,5 +197,32 @@ extension CallNode: ShortcutGeneratable {
     if !addBuiltinAction(name: callee, args: arguments, body) {
       body.ensureDefined(function: callee)
     }
+  }
+}
+
+struct Function {
+  let name: String
+  let arguments: [String]
+  let body: Body
+}
+
+extension FunctionNode: ShortcutGeneratable {
+  func generate(body: Body) {
+    let newBod = Body(parent: body)
+    for statement in self.body.nodes {
+      gen(statement, newBod)
+    }
+    body.registerFunction(Function(name: prototype.name,
+                                   arguments: prototype.argumentNames,
+                                   body: newBod))
+  }
+}
+
+extension ReturnNode: ShortcutGeneratable {
+  func generate(body: Body) {
+    if let value = self.value {
+      gen(value, body)
+    }
+    // TODO generate a return thingy here
   }
 }
