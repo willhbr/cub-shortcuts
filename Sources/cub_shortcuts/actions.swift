@@ -10,9 +10,14 @@ class Body {
   var conditionalGroups = [String]()
 
   var conditionalGroup: String? { return conditionalGroups.last }
+  var lastUUID: String { return statements.last!.uuid }
 
   func addExpression(_ expression: Expression) {
     statements.append(expression)
+  }
+
+  func ensureDefined(function: String) {
+
   }
 
   func encode() -> NSDictionary {
@@ -73,6 +78,20 @@ extension AssignmentNode: ShortcutGeneratable {
   }
 }
 
+extension VariableNode: ShortcutGeneratable {
+  func generate(body: Body) {
+    body.addExpression(
+      Expression(id: "is.workflow.actions.getvariable",
+                 params: [
+                   "WFVariable": [
+                     "Value": [
+                       "Type": "Variable",
+                       "VariableName": name],
+                   // Does this depend on the type?
+                   "WFSerializationType": "WFTextTokenAttachment"]], body))
+  }
+}
+
 extension NumberNode: ShortcutGeneratable {
   func generate(body: Body) {
     body.addExpression(Expression(id: "is.workflow.actions.number",
@@ -98,8 +117,63 @@ extension ArrayNode: ShortcutGeneratable {
   }
 }
 
-// extension BinaryOpNode: ShortcutGeneratable {
-//   func generate(body: Body) {
-// 
-//   }
-// }
+extension ArraySubscriptNode: ShortcutGeneratable {
+  func generate(body: Body) {
+    gen(variable, body)
+    gen(name, body)
+  }
+}
+
+func numberFrom(uuid: String) -> [String: Any] {
+  return ["Value": [
+    // Not sure if this is necessary
+    "OutputName": "Number",
+    "OutputUUID": uuid,
+    "Type": "ActionOutput"
+  ], "WFSerializationType": "WFTextTokenAttachment"]
+}
+
+func stringFrom(uuid: String) -> [String: Any] {
+  return ["Value": [
+            "attachmentsByRange": [
+              "{0, 1}": [
+                "OutputName": "String",
+                "OutputUUID": uuid,
+                "Type": "ActionOutput"]],
+              "string": "\u{fffc}",
+  ],
+  "WFSerializationType": "WFTextTokenString"] 
+}
+
+extension BinaryOpNode: ShortcutGeneratable {
+  func generate(body: Body) {
+    guard let rhs = self.rhs else {
+      fatalError("Can't do unary operators, sorry")
+    }
+    gen(rhs, body)
+    let uuid = body.lastUUID
+    gen(lhs, body)
+    let op: String
+    switch opInstructionType {
+    case .add: op = "+"
+    case .sub: op = "-"
+    case .mul: op = "\u{00d7}"
+    case .div: op = "\u{00f7}"
+    default: fatalError("I don't support that operator yet")
+    }
+    body.addExpression(
+      Expression(id: "is.workflow.actions.math",
+                 params: [
+                   "WFMathOperand": numberFrom(uuid: uuid),
+                   "WFMathOperation": op], body)
+      )
+  }
+}
+
+extension CallNode: ShortcutGeneratable {
+  func generate(body: Body) {
+    if !addBuiltinAction(name: callee, args: arguments, body) {
+      body.ensureDefined(function: callee)
+    }
+  }
+}

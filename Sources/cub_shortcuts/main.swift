@@ -1,8 +1,9 @@
 import Cub
+import Foundation
 
 let source = """
-a = [1, 2, 3]
-b = "1 2 3"
+c = 1 + 1
+alert("The number is two", c)
 """
 
 let lexer = Lexer(input: source)
@@ -18,9 +19,9 @@ for node in tree {
   gen(node, body)
 }
 
-print(body.encode())
-// let data = try! PropertyListSerialization.data(fromPropertyList: encoded, format: .xml, options: 0)
-// try! data.write(to: URL(fileURLWithPath: "/Users/will/tmp/shortcuts/generated.shortcut"))
-// let encoded = program.encodeProgram()
-// print(encoded)
+let encoded = body.encode()
+print(encoded)
+
+let data = try! PropertyListSerialization.data(fromPropertyList: encoded, format: .xml, options: 0)
+try! data.write(to: URL(fileURLWithPath: "generated.shortcut"))
 
