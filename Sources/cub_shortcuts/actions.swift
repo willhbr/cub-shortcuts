@@ -1,14 +1,9 @@
 import Foundation
 import Cub
 
-
-let actionIdentifier = "WFWorkflowActionIdentifier"
-let actionParams = "WFWorkflowActionParameters"
-
 class Body {
   let superBod: Body?
   var statements = [Expression]()
-  var conditionalGroups = [String]()
   var functions = [String: Function]()
   private var functionsToCheck = Set<String>()
 
@@ -17,7 +12,6 @@ class Body {
   }
 
   var isGlobal: Bool { return superBod == nil }
-  var conditionalGroup: String? { return conditionalGroups.last }
   var lastUUID: String { return statements.last!.uuid }
 
   func addExpression(_ expression: Expression) {
@@ -37,7 +31,6 @@ class Body {
   }
 
   func encode() -> NSDictionary {
-    print(functions)
     return [
       "WFWorkflowActions": functions["main"]!.body.statements.map { $0.encode() }
     ]
@@ -50,10 +43,10 @@ struct Expression {
   let uuid: String
   let conditionalGroup: String?
 
-  init(id: String, params: [String: Any], _ body: Body) {
+  init(id: String, params: [String: Any], group: String? = nil) {
     self.id = id
     self.params = params
-    self.conditionalGroup = body.conditionalGroup
+    self.conditionalGroup = group
     self.uuid = UUID().uuidString
   }
 
@@ -64,8 +57,8 @@ struct Expression {
     }
     dict["UUID"] = uuid
     return [
-      actionIdentifier: id,
-      actionParams: dict,
+      "WFWorkflowActionIdentifier": id,
+      "WFWorkflowActionParameters": dict,
     ]
   }
 }
@@ -94,7 +87,7 @@ extension AssignmentNode: ShortcutGeneratable {
     switch self.variable {
     case let iden as VariableNode:
       body.addExpression(Expression(id: "is.workflow.actions.setvariable",
-        params: ["WFVariableName": iden.name], body))
+        params: ["WFVariableName": iden.name]))
     default:
       throw parseError(self, "Can't assign to \(self.variable)")
     }
@@ -111,23 +104,21 @@ extension VariableNode: ShortcutGeneratable {
                        "Type": "Variable",
                        "VariableName": name],
                    // Does this depend on the type?
-                   "WFSerializationType": "WFTextTokenAttachment"]], body))
+                   "WFSerializationType": "WFTextTokenAttachment"]]))
   }
 }
 
 extension NumberNode: ShortcutGeneratable {
   func generate(body: Body) throws {
     body.addExpression(Expression(id: "is.workflow.actions.number",
-                                  params: ["WFNumberActionNumber": value],
-                                  body))
+                                  params: ["WFNumberActionNumber": value]))
   }
 }
 
 extension StringNode: ShortcutGeneratable {
   func generate(body: Body) throws {
     body.addExpression(Expression(id: "is.workflow.actions.gettext",
-                                  params: ["WFTextActionText": value],
-                                  body))
+                                  params: ["WFTextActionText": value]))
   }
 }
 
@@ -135,14 +126,14 @@ extension ArrayNode: ShortcutGeneratable {
   func generate(body: Body) throws {
     let tmpName = UUID().uuidString
     body.addExpression(Expression(id: "is.workflow.actions.list",
-                          params: ["WFItems": [Any]()], body))
+                          params: ["WFItems": [Any]()]))
     body.addExpression(Expression(id: "is.workflow.actions.setvariable",
-        params: ["WFVariableName": tmpName], body))
+        params: ["WFVariableName": tmpName]))
 
     for value in self.values {
       try gen(value, body)
       body.addExpression(Expression(id: "is.workflow.actions.appendvariable",
-                                    params: ["WFVariableName": tmpName], body))
+                                    params: ["WFVariableName": tmpName]))
     }
     body.addExpression(
       Expression(id: "is.workflow.actions.getvariable",
@@ -152,7 +143,7 @@ extension ArrayNode: ShortcutGeneratable {
                        "Type": "Variable",
                        "VariableName": tmpName],
                    // Does this depend on the type?
-                   "WFSerializationType": "WFTextTokenAttachment"]], body))
+                   "WFSerializationType": "WFTextTokenAttachment"]]))
   }
 }
 
@@ -190,23 +181,65 @@ extension BinaryOpNode: ShortcutGeneratable {
       throw parseError(self, "Can't do unary operators, sorry")
     }
     try gen(rhs, body)
-    let uuid = body.lastUUID
+    let rhsUUID = body.lastUUID
     try gen(lhs, body)
+    let lhsUUID = body.lastUUID
     let op: String
     switch opInstructionType {
     case .add: op = "+"
     case .sub: op = "-"
     case .mul: op = "\u{00d7}"
     case .div: op = "\u{00f7}"
+    case .eq: 
+      try generateNonMathOp(node: self, lhsUUID: lhsUUID, rhsUUID: rhsUUID, body)
+      return
     default: throw parseError(self, "I don't support that operator yet")
     }
     body.addExpression(
       Expression(id: "is.workflow.actions.math",
                  params: [
-                   "WFMathOperand": numberFrom(uuid: uuid),
-                   "WFMathOperation": op], body)
+                   "WFMathOperand": numberFrom(uuid: rhsUUID),
+                   "WFMathOperation": op])
       )
   }
+}
+
+func generateNonMathOp(node: BinaryOpNode, lhsUUID: String, rhsUUID: String, _ body: Body) throws {
+  switch node.opInstructionType {
+    case .eq:
+      try generateConditional(condition: "Equals", lhsUUID, rhsUUID, invert: false, body)
+    default:
+      throw parseError(node, "Cannot generate operation: \(node)")
+  }
+}
+
+func generateConditional(condition: String, _ lhsUUID: String, _ rhsUUID: String,
+                         invert: Bool, _ body: Body) throws {
+  let group = UUID().uuidString
+  let trueValue: String
+  let falseValue: String
+  if invert {
+    trueValue = "FALSE"
+    falseValue = "TRUE"
+  } else {
+    trueValue = "TRUE"
+    falseValue = "FALSE"
+  }
+  body.addExpression(Expression(id: "is.workflow.actions.conditional",
+                 params: ["WFControlFlowMode": 0, // I think 0 is 'start conditional'
+                          "WFCondition": condition,
+                          "WFConditionalActionString": stringFrom(uuid: rhsUUID)],
+                          group: group))
+  body.addExpression(Expression(id: "is.workflow.actions.gettext",
+                                params: ["WFTextActionText": trueValue]))
+  body.addExpression(Expression(id: "is.workflow.actions.conditional",
+                 params: ["WFControlFlowMode": 1],
+                 group: group)) // I think 1 is 'break between if/else'
+  body.addExpression(Expression(id: "is.workflow.actions.gettext",
+                                params: ["WFTextActionText": falseValue]))
+  body.addExpression(Expression(id: "is.workflow.actions.conditional",
+                 params: ["WFControlFlowMode": 2],
+                 group: group)) // I think 2 is 'endif'
 }
 
 extension CallNode: ShortcutGeneratable {

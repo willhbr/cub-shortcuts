@@ -15,7 +15,7 @@ func addBuiltinAction(node: CallNode, args: [ASTNode], _ body: Body) throws -> B
                            params: [
                              "WFAlertActionTitle": stringFrom(uuid: title),
                              "WFAlertActionMessage": stringFrom(uuid: message)
-                           ], body)
+                           ])
     body.addExpression(alert)
   case "dict":
     if args.count % 2 != 0 {
@@ -35,7 +35,7 @@ func addBuiltinAction(node: CallNode, args: [ASTNode], _ body: Body) throws -> B
     }
     let dict = Expression(id: "is.workflow.actions.dictionary",
             params: ["WFItems": ["Value":
-              ["WFDictionaryFieldValueItems": values]]], body)
+              ["WFDictionaryFieldValueItems": values]]])
     body.addExpression(dict)
   default:
     return false
