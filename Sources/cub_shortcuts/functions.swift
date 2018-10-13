@@ -3,6 +3,8 @@ import Cub
 func addBuiltinAction(node: CallNode, args: [ASTNode], _ body: Body) throws -> Bool {
   let name = node.callee
   switch name {
+  case "shortcut":
+    fatalError("Can't name the shortcut yet")
   case "alert":
     if args.count != 2 {
       throw parseError(node, "alert takes two arguments")

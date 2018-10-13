@@ -1,14 +1,39 @@
 import Foundation
 import Cub
 
-class Body {
-  let superBod: Body?
-  var statements = [Expression]()
+class Program {
+  var workflowName: String? = nil
   var functions = [String: Function]()
   private var functionsToCheck = Set<String>()
 
+  func ensureDefined(function: String) {
+    if let _ = functions[function] {
+      return
+    } else {
+      functionsToCheck.insert(function)
+    }
+  }
+
+  func getWorkflowName() throws -> String {
+    if let name = workflowName {
+      return name
+    }
+    fatalError("Must define workflow name at top of file: workflow(...)")
+  }
+}
+
+class Body {
+  let superBod: Body?
+  var statements = [Expression]()
+  let program: Program
+
   init(parent: Body? = nil) {
     superBod = parent
+    if let parent = parent {
+      program = parent.program
+    } else {
+      program = Program()
+    }
   }
 
   var isGlobal: Bool { return superBod == nil }
@@ -19,21 +44,11 @@ class Body {
   }
 
   func ensureDefined(function: String) {
-    if let _ = functions[function] {
-      return
-    } else {
-      functionsToCheck.insert(function)
-    }
+    program.ensureDefined(function: function)
   }
 
   func registerFunction(_ function: Function) {
-    self.functions[function.name] = function
-  }
-
-  func encode() -> NSDictionary {
-    return [
-      "WFWorkflowActions": functions["main"]!.body.statements.map { $0.encode() }
-    ]
+    program.functions[function.name] = function
   }
 }
 
@@ -69,8 +84,20 @@ protocol ShortcutGeneratable {
 
 func gen(_ node: ASTNode, _ body: Body) throws {
   if body.isGlobal {
+    if let call = node as? CallNode {
+      if call.callee != "workflow" {
+        throw parseError(node, "Only functions and workflow name allowed at top level")
+      }
+      if let name = call.arguments.first as? StringNode,
+          call.arguments.count == 1 {
+        body.program.workflowName = name.value
+        return
+      }
+      throw parseError(node,
+                       "Workflow name must be defined with string literal: workflow(\"My Workflow\")")
+    }
     guard let _ = node as? FunctionNode else {
-      throw parseError(node, "Can only have functions at top level")
+      throw parseError(node, "Only functions and workflow name allowed at top level")
     }
   }
   switch node {
@@ -154,6 +181,15 @@ extension ArraySubscriptNode: ShortcutGeneratable {
   }
 }
 
+func dictFrom(uuid: String) -> [String: Any] {
+  return ["Value": [
+    // Not sure if this is necessary
+    "OutputName": "Dictionary",
+    "OutputUUID": uuid,
+    "Type": "ActionOutput"
+  ], "WFSerializationType": "WFTextTokenAttachment"]
+}
+
 func numberFrom(uuid: String) -> [String: Any] {
   return ["Value": [
     // Not sure if this is necessary
@@ -190,10 +226,9 @@ extension BinaryOpNode: ShortcutGeneratable {
     case .sub: op = "-"
     case .mul: op = "\u{00d7}"
     case .div: op = "\u{00f7}"
-    case .eq: 
+    default: 
       try generateNonMathOp(node: self, lhsUUID: lhsUUID, rhsUUID: rhsUUID, body)
       return
-    default: throw parseError(self, "I don't support that operator yet")
     }
     body.addExpression(
       Expression(id: "is.workflow.actions.math",
@@ -208,8 +243,14 @@ func generateNonMathOp(node: BinaryOpNode, lhsUUID: String, rhsUUID: String, _ b
   switch node.opInstructionType {
     case .eq:
       try generateConditional(condition: "Equals", lhsUUID, rhsUUID, invert: false, body)
+    case .cmplt:
+      if node.op == "<" {
+        try generateConditional(condition: "Is Less Than", lhsUUID, rhsUUID, invert: false, body)
+      } else {
+        try generateConditional(condition: "Is Greater Than", lhsUUID, rhsUUID, invert: false, body)
+      }
     default:
-      throw parseError(node, "Cannot generate operation: \(node)")
+      throw parseError(node, "I don't support that operator yet")
   }
 }
 
@@ -275,9 +316,44 @@ extension BodyNode: ShortcutGeneratable {
 extension CallNode: ShortcutGeneratable {
   func generate(body: Body) throws {
     let builtinExists = try addBuiltinAction(node: self, args: arguments, body)
-    if !builtinExists {
-      body.ensureDefined(function: callee)
+    if builtinExists {
+      return
     }
+    body.ensureDefined(function: callee)
+
+    if arguments.count > 1 {
+      throw parseError(self, "Can't pass more than one argument to functions yet")
+    }
+
+    if let argument = arguments.first {
+      try gen(argument, body)
+    } else {
+      body.addExpression(Expression(id: "is.workflow.actions.nothing", params: [:]))
+    }
+
+    let argument = body.lastUUID
+
+    let values: [[String: Any]] = [
+      [
+        "WFItemType": 0,
+        // Might need to add more crap here
+        "WFKey": methodKey,
+        "WFValue": callee
+      ],
+      [
+        "WFItemType": 0,
+        // Might need to add more crap here
+        "WFKey": inputVariable,
+        "WFValue": stringFrom(uuid: argument)
+      ],
+    ]
+
+    body.addExpression(
+      Expression(id: "is.workflow.actions.dictionary",
+                 params: ["WFItems": ["Value": ["WFDictionaryFieldValueItems": values]]]))
+    body.addExpression(
+      Expression(id: "is.workflow.actions.runworkflow",
+                 params: ["WFWorkflowName": try body.program.getWorkflowName()]))
   }
 }
 

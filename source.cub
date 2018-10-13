@@ -1,7 +1,9 @@
+workflow("Cub on Shortcuts")
+
+func fib(number) {
+  number < 5
+}
+
 func main() {
-  if 4 == 5 {
-    alert("YES!", "it works")
-  } else {
-    alert("Noeee", "it works")
-  }
+  alert("Shortcuts", other())
 }
