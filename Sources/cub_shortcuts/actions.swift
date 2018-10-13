@@ -261,9 +261,9 @@ func generateNonMathOp(node: BinaryOpNode, _ body: Body) throws {
       try generateConditional(condition: "Equals", lhsUUID, rhsUUID, invert: false, body)
     case .cmplt:
       if node.op == "<" {
-        try generateConditional(condition: "Is Less Than", lhsUUID, rhsUUID, invert: false, body)
+        try generateConditional(condition: "Is Less Than", lhsUUID, rhsUUID, invert: true, body)
       } else {
-        try generateConditional(condition: "Is Greater Than", lhsUUID, rhsUUID, invert: true, body)
+        try generateConditional(condition: "Is Greater Than", lhsUUID, rhsUUID, invert: false, body)
       }
     default:
       throw parseError(node, "I don't support that operator yet")
@@ -363,7 +363,7 @@ extension CallNode: ShortcutGeneratable {
       [
         "WFItemType": 0,
         // Might need to add more crap here
-        "WFKey": inputVariable,
+        "WFKey": functionInputKey,
         "WFValue": stringFrom(uuid: argument)
       ],
     ]

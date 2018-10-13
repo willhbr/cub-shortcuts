@@ -13,7 +13,7 @@ func makeProgram(body: Body) throws -> NSDictionary {
   var exp = [Expression]()
   // Keep input
   exp.append(Expression(id: "is.workflow.actions.setvariable",
-                                params: ["WFVariableName": mainFunc.arguments.first ?? inputVariable]))
+                        params: ["WFVariableName": mainFunc.arguments.first ?? inputVariable]))
   let inputDict = Expression(id: "is.workflow.actions.detect.dictionary", params: [:])
   exp.append(inputDict)
 

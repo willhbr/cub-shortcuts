@@ -1,0 +1,14 @@
+workflow("Cub on Shortcuts")
+
+func factorial(x) {
+  if x > 1 {
+    x * factorial(x - 1)
+  } else {
+    1
+  }
+}
+
+func main() {
+  a = factorial(5)
+  alert("5 factorial is:", a)
+}
