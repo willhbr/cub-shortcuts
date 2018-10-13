@@ -1,14 +1,15 @@
 import Cub
 import Foundation
 
-let source = """
-func main() {
-  d = dict(3, 2)
-  arr = [1, 2, 3]
+guard CommandLine.arguments.count > 1 else {
+  fatalError("Must be given filename")
 }
-"""
+
+let filename = CommandLine.arguments[1]
 
 do {
+  let url = URL(fileURLWithPath: filename)
+  let source = try String(contentsOf: url, encoding: .utf8)
   let lexer = Lexer(input: source)
   let tokens = lexer.tokenize()
 

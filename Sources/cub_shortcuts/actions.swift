@@ -242,9 +242,40 @@ func generateConditional(condition: String, _ lhsUUID: String, _ rhsUUID: String
                  group: group)) // I think 2 is 'endif'
 }
 
+extension ConditionalStatementNode: ShortcutGeneratable {
+  func generate(body: Body) throws {
+    let group = UUID().uuidString
+    try gen(self.condition, body)
+    body.addExpression(Expression(id: "is.workflow.actions.conditional",
+                   params: ["WFControlFlowMode": 0, // I think 0 is 'start conditional'
+                            "WFCondition": "Equals",
+                            "WFConditionalActionString": "TRUE"],
+                            group: group))
+    try gen(self.body, body)
+    body.addExpression(Expression(id: "is.workflow.actions.conditional",
+                   params: ["WFControlFlowMode": 1],
+                   group: group)) // I think 1 is 'break between if/else'
+    if let elseBody = self.elseBody {
+      try gen(elseBody, body)
+    }
+    body.addExpression(Expression(id: "is.workflow.actions.conditional",
+                   params: ["WFControlFlowMode": 2],
+                   group: group)) // I think 2 is 'endif'
+  }
+}
+
+extension BodyNode: ShortcutGeneratable {
+  func generate(body: Body) throws {
+    for node in self.nodes {
+      try gen(node, body)
+    }
+  }
+}
+
 extension CallNode: ShortcutGeneratable {
   func generate(body: Body) throws {
-    if !(try addBuiltinAction(node: self, args: arguments, body)) {
+    let builtinExists = try addBuiltinAction(node: self, args: arguments, body)
+    if !builtinExists {
       body.ensureDefined(function: callee)
     }
   }
@@ -262,9 +293,7 @@ extension FunctionNode: ShortcutGeneratable {
       throw parseError(self, "Cannot have returning functions yet")
     }
     let newBod = Body(parent: body)
-    for statement in self.body.nodes {
-      try gen(statement, newBod)
-    }
+    try gen(self.body, newBod)
     body.registerFunction(Function(name: prototype.name,
                                    arguments: prototype.argumentNames,
                                    body: newBod))
