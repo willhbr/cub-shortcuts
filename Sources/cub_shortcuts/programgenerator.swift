@@ -7,7 +7,7 @@ let mainFunctionName = "main"
 
 func makeProgram(body: Body) throws -> NSDictionary {
   guard let mainFunc = body.program.functions.removeValue(forKey: mainFunctionName) else {
-    fatalError("No main function defined")
+    throw ParseError(message: "No main function defined", location: nil)
   }
   try body.program.checkFunctions()
   var exp = [Expression]()

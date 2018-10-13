@@ -1,13 +1,7 @@
 import Cub
 import Foundation
 
-guard CommandLine.arguments.count > 1 else {
-  fatalError("Must be given filename")
-}
-
-let filename = CommandLine.arguments[1]
-
-do {
+func compileAndWrite(filePath: String) throws {
   let url = URL(fileURLWithPath: filename)
   let source = try String(contentsOf: url, encoding: .utf8)
   let lexer = Lexer(input: source)
@@ -27,7 +21,15 @@ do {
   let name = try body.program.getWorkflowName()
   print("Compiled \(name).shortcut")
   try data.write(to: URL(fileURLWithPath: name + ".shortcut"))
-} catch {
-  print(error)
 }
 
+if CommandLine.arguments.count != 2 {
+  print("usage: cub_shortcuts <file>.cub")
+} else {
+  let filename = CommandLine.arguments[1]
+  do {
+    try compileAndWrite(file: filename)
+  } catch {
+    print(error)
+  }
+}

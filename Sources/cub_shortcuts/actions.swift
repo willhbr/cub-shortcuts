@@ -26,7 +26,7 @@ class Program {
     if let name = workflowName {
       return name
     }
-    fatalError("Must define workflow name at top of file: workflow(...)")
+    throw ParseError(message: "Must define workflow name at top of file: workflow(...)", location: nil)
   }
 }
 
