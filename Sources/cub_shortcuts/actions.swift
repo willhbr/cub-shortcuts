@@ -341,32 +341,24 @@ extension CallNode: ShortcutGeneratable {
     }
     body.ensureDefined(function: callee)
 
-    if arguments.count > 1 {
-      throw parseError(self, "Can't pass more than one argument to functions yet")
-    }
-
-    if let argument = arguments.first {
-      try gen(argument, body)
-    } else {
-      body.addExpression(Expression(id: "is.workflow.actions.nothing", params: [:]))
-    }
-
-    let argument = body.lastUUID
-
-    let values: [[String: Any]] = [
+    var values: [[String: Any]] = [
       [
         "WFItemType": 0,
         // Might need to add more crap here
         "WFKey": methodKey,
         "WFValue": callee
       ],
-      [
+    ]
+    for (idx, argument) in arguments.enumerated() {
+      try gen(argument, body)
+      let uuid = body.lastUUID
+      values.append([
         "WFItemType": 0,
         // Might need to add more crap here
-        "WFKey": functionInputKey,
-        "WFValue": stringFrom(uuid: argument)
-      ],
-    ]
+        "WFKey": functionInputKey + String(idx),
+        "WFValue": stringFrom(uuid: uuid)
+      ])
+    }
 
     body.addExpression(
       Expression(id: "is.workflow.actions.dictionary",
@@ -385,9 +377,6 @@ struct Function {
 
 extension FunctionNode: ShortcutGeneratable {
   func generate(body: Body) throws {
-    if self.prototype.returns {
-      throw parseError(self, "Cannot have returning functions yet")
-    }
     let newBod = Body(parent: body)
     try gen(self.body, newBod)
     body.registerFunction(Function(name: prototype.name,
@@ -401,7 +390,7 @@ extension ReturnNode: ShortcutGeneratable {
     if let value = self.value {
       try gen(value, body)
     }
-    // TODO generate a return thingy here
+    body.addExpression(Expression(id: "is.workflow.actions.exit", params: [:]))
   }
 }
 

@@ -22,7 +22,8 @@ do {
   }
   let encoded = try makeProgram(body: body)
 
-  let data = try PropertyListSerialization.data(fromPropertyList: encoded, format: .xml, options: 0)
+  let data = try PropertyListSerialization.data(fromPropertyList: encoded,
+                                                format: .binary, options: 0)
   let name = try body.program.getWorkflowName()
   print("Compiled \(name).shortcut")
   try data.write(to: URL(fileURLWithPath: name + ".shortcut"))

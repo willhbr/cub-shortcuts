@@ -3,8 +3,6 @@ import Cub
 func addBuiltinAction(node: CallNode, args: [ASTNode], _ body: Body) throws -> Bool {
   let name = node.callee
   switch name {
-  case "shortcut":
-    fatalError("Can't name the shortcut yet")
   case "alert":
     if args.count != 2 {
       throw parseError(node, "alert takes two arguments")
@@ -19,6 +17,21 @@ func addBuiltinAction(node: CallNode, args: [ASTNode], _ body: Body) throws -> B
                              "WFAlertActionMessage": stringFrom(uuid: message)
                            ])
     body.addExpression(alert)
+  case "ask": // ask(title, type)
+    var params: [String: Any] = [:]
+    switch args.count {
+    case 1:
+      try gen(args[0], body)
+      params["WFAskActionPrompt"] = stringFrom(uuid: body.lastUUID)
+    case 2:
+      try gen(args[0], body)
+      params["WFAskActionPrompt"] = stringFrom(uuid: body.lastUUID)
+      try gen(args[1], body)
+      params["WFInputType"] = stringFrom(uuid: body.lastUUID)
+    default:
+      throw parseError(node, "ask takes 1 or 2 arguments")
+    }
+    body.addExpression(Expression(id: "is.workflow.actions.ask", params: params))
   case "dict":
     if args.count % 2 != 0 {
       throw parseError(node, "Dict must take even number of args")

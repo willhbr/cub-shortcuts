@@ -1,0 +1,19 @@
+workflow("Cub on Shortcuts")
+
+func fibonacci(n) returns {
+  if n == 0 {
+    return 0
+  }
+
+  if n == 1 {
+    return 1
+  }
+
+  return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+func main() {
+  fib = ask("What fibonacci number", "Number")
+  a = fibonacci(fib)
+  alert("The 10th fibonacci number is:", a)
+}

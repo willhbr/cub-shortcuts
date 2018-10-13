@@ -29,12 +29,14 @@ func makeProgram(body: Body) throws -> NSDictionary {
                             "WFConditionalActionString": function.name],
                             group: group))
     
-    exp.append(Expression(id: "is.workflow.actions.getvariable",
-                          params: ["WFVariable": dictFrom(uuid: inputDict.uuid)]))
-    exp.append(Expression(id: "is.workflow.actions.getvalueforkey",
-                          params: ["WFDictionaryKey": functionInputKey]))
-    exp.append(Expression(id: "is.workflow.actions.setvariable",
-                          params: ["WFVariableName": function.arguments.first ?? inputVariable]))
+    for (idx, argument) in function.arguments.enumerated() {
+      exp.append(Expression(id: "is.workflow.actions.getvariable",
+                            params: ["WFVariable": dictFrom(uuid: inputDict.uuid)]))
+      exp.append(Expression(id: "is.workflow.actions.getvalueforkey",
+                            params: ["WFDictionaryKey": functionInputKey + String(idx)]))
+      exp.append(Expression(id: "is.workflow.actions.setvariable",
+                            params: ["WFVariableName": argument]))
+    }
     for statement in function.body.statements {
       exp.append(statement)
     }
