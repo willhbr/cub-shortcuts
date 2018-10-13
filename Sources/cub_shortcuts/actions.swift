@@ -14,6 +14,14 @@ class Program {
     }
   }
 
+  func checkFunctions() throws {
+    for function in functionsToCheck {
+      if functions[function] == nil {
+        throw ParseError(message: "Function '\(function)' not defined.", location: nil)
+      }
+    }
+  }
+
   func getWorkflowName() throws -> String {
     if let name = workflowName {
       return name
@@ -67,7 +75,7 @@ struct Expression {
 
   func encode() -> NSDictionary {
     var dict = params
-    if let group = conditionalGroup, id.hasSuffix("conditional") {
+    if let group = conditionalGroup {
       dict["GroupingIdentifier"] = group
     }
     dict["UUID"] = uuid
@@ -83,6 +91,9 @@ protocol ShortcutGeneratable {
 }
 
 func gen(_ node: ASTNode, _ body: Body) throws {
+  if let _ = node as? CommentNode {
+    return
+  }
   if body.isGlobal {
     if let call = node as? CallNode {
       if call.callee != "workflow" {
@@ -216,10 +227,6 @@ extension BinaryOpNode: ShortcutGeneratable {
     guard let rhs = self.rhs else {
       throw parseError(self, "Can't do unary operators, sorry")
     }
-    try gen(rhs, body)
-    let rhsUUID = body.lastUUID
-    try gen(lhs, body)
-    let lhsUUID = body.lastUUID
     let op: String
     switch opInstructionType {
     case .add: op = "+"
@@ -227,9 +234,12 @@ extension BinaryOpNode: ShortcutGeneratable {
     case .mul: op = "\u{00d7}"
     case .div: op = "\u{00f7}"
     default: 
-      try generateNonMathOp(node: self, lhsUUID: lhsUUID, rhsUUID: rhsUUID, body)
+      try generateNonMathOp(node: self, body)
       return
     }
+    try gen(rhs, body)
+    let rhsUUID = body.lastUUID
+    try gen(lhs, body)
     body.addExpression(
       Expression(id: "is.workflow.actions.math",
                  params: [
@@ -239,7 +249,13 @@ extension BinaryOpNode: ShortcutGeneratable {
   }
 }
 
-func generateNonMathOp(node: BinaryOpNode, lhsUUID: String, rhsUUID: String, _ body: Body) throws {
+func generateNonMathOp(node: BinaryOpNode, _ body: Body) throws {
+  let lhs = node.lhs
+  let rhs = node.rhs!
+  try gen(rhs, body)
+  let rhsUUID = body.lastUUID
+  try gen(lhs, body)
+  let lhsUUID = body.lastUUID
   switch node.opInstructionType {
     case .eq:
       try generateConditional(condition: "Equals", lhsUUID, rhsUUID, invert: false, body)
@@ -247,7 +263,7 @@ func generateNonMathOp(node: BinaryOpNode, lhsUUID: String, rhsUUID: String, _ b
       if node.op == "<" {
         try generateConditional(condition: "Is Less Than", lhsUUID, rhsUUID, invert: false, body)
       } else {
-        try generateConditional(condition: "Is Greater Than", lhsUUID, rhsUUID, invert: false, body)
+        try generateConditional(condition: "Is Greater Than", lhsUUID, rhsUUID, invert: true, body)
       }
     default:
       throw parseError(node, "I don't support that operator yet")
@@ -266,11 +282,15 @@ func generateConditional(condition: String, _ lhsUUID: String, _ rhsUUID: String
     trueValue = "TRUE"
     falseValue = "FALSE"
   }
+  var params: [String: Any] = ["WFControlFlowMode": 0, // I think 0 is 'start conditional'
+                          "WFCondition": condition]
+  if condition == "Equals" {
+    params["WFConditionalActionString"] = stringFrom(uuid: rhsUUID)
+  } else {
+    params["WFNumberValue"] = numberFrom(uuid: rhsUUID)
+  }
   body.addExpression(Expression(id: "is.workflow.actions.conditional",
-                 params: ["WFControlFlowMode": 0, // I think 0 is 'start conditional'
-                          "WFCondition": condition,
-                          "WFConditionalActionString": stringFrom(uuid: rhsUUID)],
-                          group: group))
+                 params: params, group: group))
   body.addExpression(Expression(id: "is.workflow.actions.gettext",
                                 params: ["WFTextActionText": trueValue]))
   body.addExpression(Expression(id: "is.workflow.actions.conditional",
@@ -392,4 +412,20 @@ struct ParseError: Error {
 
 func parseError(_ node: ASTNode, _ message: String) -> ParseError {
   return ParseError(message: message, location: node.range)
+}
+
+extension DoStatementNode: ShortcutGeneratable {
+  func generate(body: Body) throws {
+    try gen(self.amount, body)
+    let count = body.lastUUID
+    let group = UUID().uuidString
+    body.addExpression(Expression(id: "is.workflow.actions.repeat.count",
+                                  params: [
+                                    "WFRepeatCount": numberFrom(uuid: count),
+                                    "WFControlFlowMode": 0], group: group))
+    try gen(self.body, body)
+    body.addExpression(Expression(id: "is.workflow.actions.repeat.count",
+                                  params: [
+                                    "WFControlFlowMode": 2], group: group))
+  }
 }

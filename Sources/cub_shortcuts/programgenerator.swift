@@ -9,6 +9,7 @@ func makeProgram(body: Body) throws -> NSDictionary {
   guard let mainFunc = body.program.functions.removeValue(forKey: mainFunctionName) else {
     fatalError("No main function defined")
   }
+  try body.program.checkFunctions()
   var exp = [Expression]()
   // Keep input
   exp.append(Expression(id: "is.workflow.actions.setvariable",

@@ -1,9 +1,0 @@
-workflow("Cub on Shortcuts")
-
-func fib(number) {
-  number < 5
-}
-
-func main() {
-  alert("Shortcuts", other())
-}
