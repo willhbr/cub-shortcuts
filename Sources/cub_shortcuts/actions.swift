@@ -335,8 +335,8 @@ extension BodyNode: ShortcutGeneratable {
 
 extension CallNode: ShortcutGeneratable {
   func generate(body: Body) throws {
-    let builtinExists = try addBuiltinAction(node: self, args: arguments, body)
-    if builtinExists {
+    if Builtins.hasBuiltinFunction(name: callee) {
+      try Builtins.generateBuiltinFunction(node: self, args: arguments, body)
       return
     }
     body.ensureDefined(function: callee)

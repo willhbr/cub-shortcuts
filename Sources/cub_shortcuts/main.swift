@@ -2,7 +2,8 @@ import Cub
 import Foundation
 
 func compileAndWrite(filePath: String) throws {
-  let url = URL(fileURLWithPath: filename)
+  registerBuiltins()
+  let url = URL(fileURLWithPath: filePath)
   let source = try String(contentsOf: url, encoding: .utf8)
   let lexer = Lexer(input: source)
   let tokens = lexer.tokenize()
@@ -28,7 +29,7 @@ if CommandLine.arguments.count != 2 {
 } else {
   let filename = CommandLine.arguments[1]
   do {
-    try compileAndWrite(file: filename)
+    try compileAndWrite(filePath: filename)
   } catch {
     print(error)
   }
